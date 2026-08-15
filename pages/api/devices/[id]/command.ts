@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import '../../../src/providers/miraie';
-import { getProvider } from '../../../src/providers/registry';
-import { getSession } from '../../../src/lib/session';
-import { verifyApiKey } from '../../../src/lib/auth';
-import { DeviceCommandSchema } from '../../../src/lib/validation';
+import '../../../../src/providers/miraie';
+import { getProvider } from '../../../../src/providers/registry';
+import { getSession } from '../../../../src/lib/session';
+import { verifyApiKey } from '../../../../src/lib/auth';
+import { validateDeviceCommand } from '../../../../src/lib/validation';
 
 async function requireAuth(req: NextApiRequest, res: NextApiResponse) {
   const bearer = req.headers.authorization?.split(' ')[1];
