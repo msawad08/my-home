@@ -7,8 +7,10 @@ services:
       POSTGRES_USER: miraie
       POSTGRES_PASSWORD: miraie
       POSTGRES_DB: my_home
+    # Avoid binding to host 5432 if the host already runs Postgres.
+    # Map to 5433 on the host to prevent conflicts; change or remove if you prefer.
     ports:
-      - 5432:5432
+      - 5433:5432
     volumes:
       - db_data:/var/lib/postgresql/data
 
