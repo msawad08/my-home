@@ -59,6 +59,12 @@ export class MiraieAdapter implements SmartHomeProvider {
         const s = this.mapDevice(d);
         // keep in-memory db in sync
         db.devices.set(s.id, s);
+        // persist to storage if available
+        try { 
+          // lazy import to avoid circular
+          const storage = require('../../lib/storage').default;
+          storage.setDevice(s.id, s).catch(() => {});
+        } catch (e) {}
         return s;
       });
       return mapped;
@@ -74,6 +80,10 @@ export class MiraieAdapter implements SmartHomeProvider {
       if (d) {
         const s = this.mapDevice(d);
         db.devices.set(s.id, s);
+        try { 
+          const storage = require('../../lib/storage').default;
+          storage.setDevice(s.id, s).catch(() => {});
+        } catch (e) {}
         return s;
       }
     }
@@ -100,6 +110,10 @@ export class MiraieAdapter implements SmartHomeProvider {
       // refresh state
       const s = this.mapDevice(d);
       db.devices.set(s.id, s);
+      try { 
+        const storage = require('../../lib/storage').default;
+        storage.setDevice(s.id, s).catch(() => {});
+      } catch (e) {}
       return s;
     }
 
