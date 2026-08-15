@@ -22,8 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!(await requireAuth(req, res))) return;
   const { id } = req.query;
   // validate body
-  const parse = DeviceCommandSchema.safeParse(req.body || {});
-  if (!parse.success) return res.status(400).json({ success: false, error: 'INVALID_COMMAND', details: parse.error.format() });
+  const parse = validateDeviceCommand(req.body || {});
+  if (!parse.success) return res.status(400).json({ success: false, error: 'INVALID_COMMAND', details: parse.error });
   const provider = getProvider('miraie');
   if (!provider) return res.status(500).json({ success: false, error: 'NO_PROVIDER' });
   try {
