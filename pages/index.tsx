@@ -13,12 +13,22 @@ export default function Dashboard() {
 
   if (!data) return <div>Loading...</div>;
   if (error) return <div>Error</div>;
+  if (data && data.success === false) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Devices</h1>
+        <p>You must be signed in to view devices. <a href="/login">Sign in</a></p>
+      </main>
+    );
+  }
+
+  const devices = data?.devices || [];
 
   return (
     <main style={{ padding: 24 }}>
       <h1>Devices</h1>
       <ul>
-        {data.devices.map((d: any) => (
+        {devices.map((d: any) => (
           <li key={d.id} style={{ marginBottom: 12 }}>
             <strong>{d.name}</strong> — {d.online ? 'online' : 'offline'} — power: {d.power ? 'on' : 'off'}
             <div>
