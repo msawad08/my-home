@@ -21,3 +21,16 @@ npm run dev
 API routes are under `pages/api` and a simple Miraie adapter stub lives in `src/providers/miraie`.
 
 Deploy to Vercel by connecting this repository and using the default Next.js build.
+
+Local Docker (Postgres)
+-----------------------
+
+Start Postgres and app locally with Docker Compose:
+
+```bash
+cd d:/Workspace/HA/my-home
+cp .env.example .env
+docker compose up --build
+```
+
+This starts Postgres and the app with `DATABASE_URL` pointing to the containerized DB. The app will run on http://localhost:3000.

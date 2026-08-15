@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: miraie
+      POSTGRES_PASSWORD: miraie
+      POSTGRES_DB: my_home
+    ports:
+      - 5432:5432
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - 3000:3000
+    environment:
+      DATABASE_URL: postgres://miraie:miraie@db:5432/my_home
+      MIRAIE_USERNAME: ${MIRAIE_USERNAME}
+      MIRAIE_PASSWORD: ${MIRAIE_PASSWORD}
+    depends_on:
+      - db
+
+volumes:
+  db_data:

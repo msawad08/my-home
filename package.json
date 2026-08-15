@@ -13,7 +13,8 @@
     "react-dom": "18.2.0",
     "bcryptjs": "2.4.3",
     "zod": "4.24.2",
-    "miraie-ac-js": "^1.0.5"
+    "miraie-ac-js": "^1.0.5",
+    "pg": "^8.11.0"
   },
   "devDependencies": {
     "typescript": "5.5.2"
