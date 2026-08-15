@@ -5,7 +5,7 @@ export function setSessionCookie(res: any, username: string) {
   const cookie = serialize('session', encodeURIComponent(username), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
     maxAge: 60 * 60 * 24, // 1 day
   });
@@ -16,7 +16,7 @@ export function clearSessionCookie(res: any) {
   const cookie = serialize('session', '', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
     maxAge: 0,
   });
