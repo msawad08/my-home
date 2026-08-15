@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createApiKey, verifyApiKey } from '../../../src/lib/auth';
-import { db } from '../../../src/lib/db';
+import { createApiKey } from '../../../src/lib/auth';
+import storage from '../../../src/lib/storage';
 import { getSession } from '../../../src/lib/session';
 
 function requireSession(req: NextApiRequest, res: NextApiResponse) {
@@ -12,18 +12,18 @@ function requireSession(req: NextApiRequest, res: NextApiResponse) {
   return true;
 }
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'POST') {
     if (!requireSession(req, res)) return;
     const name = req.body?.name || 'shortcut';
     const days = parseInt(process.env.API_KEY_EXPIRY_DAYS || '365', 10);
-    const rec = createApiKey(name, days);
+    const rec = await createApiKey(name, days);
     return res.json({ success: true, key: rec.key, expiresAt: rec.expiresAt });
   }
 
   if (req.method === 'GET') {
     if (!requireSession(req, res)) return;
-    const list = Array.from(db.apiKeys.values());
+    const list = await storage.listApiKeys();
     return res.json({ success: true, keys: list });
   }
 
@@ -31,10 +31,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!requireSession(req, res)) return;
     const key = req.body?.key;
     if (!key) return res.status(400).json({ success: false });
-    const rec = db.apiKeys.get(key);
+    const rec = await storage.getApiKeyRecord(key);
     if (!rec) return res.status(404).json({ success: false });
-    rec.revoked = true;
-    db.apiKeys.set(key, rec);
+    await storage.revokeApiKey(key);
     return res.json({ success: true });
   }
 

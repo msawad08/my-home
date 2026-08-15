@@ -61,6 +61,23 @@ export async function getApiKeyRecord(key: string): Promise<ApiKeyRec | null> {
   return { key: row.key, name: row.name, expiresAt: row.expires_at ? row.expires_at.toISOString() : null, revoked: row.revoked };
 }
 
+export async function listApiKeys(): Promise<ApiKeyRec[]> {
+  if (!pool) return Array.from(inMemory.apiKeys.values());
+  const r = await pool.query('SELECT key,name,expires_at,revoked FROM api_keys');
+  return r.rows.map((row: any) => ({ key: row.key, name: row.name, expiresAt: row.expires_at ? row.expires_at.toISOString() : null, revoked: row.revoked }));
+}
+
+export async function revokeApiKey(key: string) {
+  if (!pool) {
+    const rec = inMemory.apiKeys.get(key);
+    if (!rec) throw new Error('NOT_FOUND');
+    rec.revoked = true;
+    inMemory.apiKeys.set(key, rec);
+    return;
+  }
+  await pool.query('UPDATE api_keys SET revoked = TRUE WHERE key=$1', [key]);
+}
+
 export async function listDevices(): Promise<any[]> {
   if (!pool) return Array.from(inMemory.devices.values());
   const r = await pool.query('SELECT id, data FROM devices');

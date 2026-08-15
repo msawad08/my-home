@@ -5,10 +5,10 @@ import { getSession } from '../../../src/lib/session';
 import { verifyApiKey } from '../../../src/lib/auth';
 import { DeviceCommandSchema } from '../../../src/lib/validation';
 
-function requireAuth(req: NextApiRequest, res: NextApiResponse) {
+async function requireAuth(req: NextApiRequest, res: NextApiResponse) {
   const bearer = req.headers.authorization?.split(' ')[1];
   if (bearer) {
-    const rec = verifyApiKey(bearer);
+    const rec = await verifyApiKey(bearer);
     if (rec) return true;
   }
   const session = getSession(req as any);
@@ -19,7 +19,7 @@ function requireAuth(req: NextApiRequest, res: NextApiResponse) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();
-  if (!requireAuth(req, res)) return;
+  if (!(await requireAuth(req, res))) return;
   const { id } = req.query;
   // validate body
   const parse = DeviceCommandSchema.safeParse(req.body || {});
