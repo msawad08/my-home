@@ -2,13 +2,6 @@ import { SmartHomeProvider, DeviceState, DeviceCommand } from '../core/types';
 import { db } from '../../lib/db';
 
 let MiraieAcJs: any | null = null;
-try {
-  // optional runtime dependency
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  MiraieAcJs = require('miraie-ac-js');
-} catch (e) {
-  MiraieAcJs = null;
-}
 
 export class MiraieAdapter implements SmartHomeProvider {
   id = 'miraie';
@@ -22,9 +15,18 @@ export class MiraieAdapter implements SmartHomeProvider {
     const password = process.env.MIRAIE_PASSWORD;
     if (!username || !password) return;
 
+    // dynamic import for ESM package
+    if (!MiraieAcJs) {
+      try {
+        const mod = await import('miraie-ac-js');
+        MiraieAcJs = (mod && (mod as any).default) ? (mod as any).default : mod;
+      } catch (e) {
+        MiraieAcJs = null;
+      }
+    }
     if (!MiraieAcJs) return;
     this._session = await MiraieAcJs.createSession({ username, password });
-    await this._session.connect();
+    if (this._session && typeof this._session.connect === 'function') await this._session.connect();
   }
 
   private async ensureSession() {
