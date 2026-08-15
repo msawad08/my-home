@@ -18,8 +18,8 @@ services:
       - 3000:3000
     environment:
       DATABASE_URL: postgres://miraie:miraie@db:5432/my_home
-      MIRAIE_USERNAME: ${MIRAIE_USERNAME}
-      MIRAIE_PASSWORD: ${MIRAIE_PASSWORD}
+    env_file:
+      - .env
     depends_on:
       - db
 
