@@ -104,6 +104,8 @@ export default {
   setUser,
   createApiKeyRecord,
   getApiKeyRecord,
+  listApiKeys,
+  revokeApiKey,
   listDevices,
   getDevice,
   setDevice,
