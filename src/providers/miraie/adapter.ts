@@ -110,6 +110,16 @@ export class MiraieAdapter implements SmartHomeProvider {
     return (cached?.data as DeviceState | undefined) ?? db.devices.get(deviceId) ?? null;
   }
 
+  async getDeviceDiagnostics(deviceId: string): Promise<Record<string, unknown> | null> {
+    await this.ensureSession();
+    if (typeof this.session?.getDevices !== 'function') return null;
+    const devices = await this.discoverDevices();
+    const device = devices.find((item: any) => String(item.data?.deviceId || item.id) === deviceId);
+    if (!device) return null;
+    const status = device.getStatus?.();
+    return status && typeof status === 'object' ? status : {};
+  }
+
   async executeCommand(deviceId: string, command: DeviceCommand): Promise<DeviceState> {
     await this.ensureSession();
     if (typeof this.session?.getDevices === 'function') {
