@@ -15,7 +15,8 @@ function requireSession(req: NextApiRequest, res: NextApiResponse) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'POST') {
     if (!requireSession(req, res)) return;
-    const name = req.body?.name || 'shortcut';
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 80) : 'shortcut';
+    if (!name) return res.status(400).json({ success: false, error: 'INVALID_NAME' });
     const days = parseInt(process.env.API_KEY_EXPIRY_DAYS || '365', 10);
     const rec = await createApiKey(name, days);
     return res.json({ success: true, key: rec.key, expiresAt: rec.expiresAt });
@@ -29,11 +30,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'DELETE') {
     if (!requireSession(req, res)) return;
-    const key = req.body?.key;
-    if (!key) return res.status(400).json({ success: false });
-    const rec = await storage.getApiKeyRecord(key);
-    if (!rec) return res.status(404).json({ success: false });
-    await storage.revokeApiKey(key);
+    const id = req.body?.id;
+    if (typeof id !== 'string') return res.status(400).json({ success: false, error: 'MISSING_KEY_ID' });
+    if (!(await storage.revokeApiKey(id))) return res.status(404).json({ success: false, error: 'NOT_FOUND' });
     return res.json({ success: true });
   }
 
