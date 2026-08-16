@@ -1,53 +1,11 @@
-import { useState, useEffect } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [sessionUser, setSessionUser] = useState<string | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(d => { if (d.authenticated) setSessionUser(d.username); });
-  }, []);
-
-  async function submit(e: any) {
-    e.preventDefault();
-    const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-    const data = await res.json();
-    if (data.success) router.push('/');
-    else alert('Login failed');
-  }
-
-  async function logout() {
-    await fetch('/api/auth/login', { method: 'DELETE' });
-    setSessionUser(null);
-  }
-
-  if (sessionUser) {
-    return (
-      <main style={{ padding: 24 }}>
-        <h2>Signed in as {sessionUser}</h2>
-        <button onClick={() => router.push('/')}>Go to dashboard</button>
-        <button onClick={logout} style={{ marginLeft: 8 }}>Sign out</button>
-      </main>
-    );
-  }
-
-  return (
-    <main style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>
-      <form onSubmit={submit} style={{ width: 320 }}>
-        <h2>Login</h2>
-        <div>
-          <label>Username</label>
-          <input value={username} onChange={e => setUsername(e.target.value)} />
-        </div>
-        <div>
-          <label>Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
-        </div>
-        <button type="submit">Sign in</button>
-      </form>
-    </main>
-  );
+  const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [sessionUser, setSessionUser] = useState<string | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const router = useRouter();
+  useEffect(() => { fetch('/api/auth/session').then((response) => response.json()).then((data) => { if (data.authenticated) setSessionUser(data.username); }).catch(() => undefined); }, []);
+  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(null); try { const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }); const data = await response.json(); if (!response.ok || !data.success) throw new Error('Incorrect username or password.'); await router.push('/'); } catch (err) { setError(err instanceof Error ? err.message : 'Login failed.'); } finally { setBusy(false); } }
+  async function logout() { setBusy(true); await fetch('/api/auth/login', { method: 'DELETE' }); setSessionUser(null); setBusy(false); }
+  return <main style={styles.page}><section style={styles.card}>{sessionUser ? <><p style={styles.eyebrow}>SIGNED IN</p><h1 style={styles.title}>Hello, {sessionUser}</h1><p style={styles.muted}>Your dashboard and API key controls are ready.</p><div style={styles.actions}><button style={styles.primary} onClick={() => router.push('/')}>Open dashboard</button><button style={styles.secondary} disabled={busy} onClick={logout}>Sign out</button></div></> : <><p style={styles.eyebrow}>MY HOME</p><h1 style={styles.title}>Welcome back</h1><p style={styles.muted}>Sign in to manage your climate controls.</p><form onSubmit={submit} style={styles.form}><label style={styles.label}>Username<input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} style={styles.input} disabled={busy} required /></label><label style={styles.label}>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} style={styles.input} disabled={busy} required /></label>{error && <p role="alert" style={styles.error}>{error}</p>}<button type="submit" style={styles.primary} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button></form></>}</section></main>;
 }
+const styles: Record<string, React.CSSProperties> = { page: { minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f7f9fc', fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif', color: '#172033' }, card: { width: '100%', maxWidth: 400, background: '#fff', border: '1px solid #dbe3ef', borderRadius: 16, padding: 32, boxShadow: '0 16px 40px rgba(23,32,51,.09)' }, eyebrow: { color: '#61708a', letterSpacing: 1.4, fontWeight: 800, fontSize: 12, margin: 0 }, title: { fontSize: 30, margin: '7px 0' }, muted: { color: '#61708a', margin: 0 }, form: { display: 'grid', gap: 16, marginTop: 26 }, label: { display: 'grid', gap: 7, fontWeight: 700 }, input: { padding: '11px 12px', border: '1px solid #b8c4d6', borderRadius: 8, fontSize: 16 }, primary: { border: 0, borderRadius: 8, background: '#2563eb', color: '#fff', padding: '11px 14px', fontWeight: 800, cursor: 'pointer' }, secondary: { border: '1px solid #b8c4d6', borderRadius: 8, background: '#fff', padding: '10px 13px', fontWeight: 700, cursor: 'pointer' }, actions: { display: 'flex', gap: 10, marginTop: 24 }, error: { color: '#b42318', margin: 0, fontWeight: 600 } };

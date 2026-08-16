@@ -19,6 +19,7 @@ inMemory.users.set(defaultUsername, { username: defaultUsername, passwordHash: b
 
 let pool: Pool | null = null;
 let initialization: Promise<void> | null = null;
+let apiKeyListCache: { value: PublicApiKeyRec[]; expiresAt: number } | null = null;
 
 export async function initStorage(): Promise<void> {
   if (initialization) return initialization;
@@ -40,6 +41,7 @@ export async function initStorage(): Promise<void> {
         ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS id TEXT;
         ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_hint TEXT;
         ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+        UPDATE api_keys SET id = md5(key), key_hint = concat(left(key, 8), '…') WHERE id IS NULL;
         CREATE UNIQUE INDEX IF NOT EXISTS api_keys_id_unique ON api_keys(id) WHERE id IS NOT NULL;
       `);
       await pool.query(
@@ -83,8 +85,9 @@ export async function createApiKeyRecord(name: string, expiresAt?: string): Prom
   await ready();
   const key = crypto.randomBytes(32).toString('base64url');
   const rec: ApiKeyRec = { id: crypto.randomUUID(), name, key, keyHint: `${key.slice(0, 8)}…${key.slice(-4)}`, expiresAt: expiresAt ?? null, revoked: false };
-  if (!pool) { inMemory.apiKeys.set(rec.id, rec); return rec; }
+  if (!pool) { inMemory.apiKeys.set(rec.id, rec); apiKeyListCache = null; return rec; }
   await pool.query('INSERT INTO api_keys(key, id, name, key_hint, expires_at, revoked) VALUES($1, $2, $3, $4, $5, FALSE)', [rec.key, rec.id, rec.name, rec.keyHint, rec.expiresAt]);
+  apiKeyListCache = null;
   return rec;
 }
 export async function getApiKeyRecord(key: string): Promise<ApiKeyRec | null> {
@@ -95,14 +98,22 @@ export async function getApiKeyRecord(key: string): Promise<ApiKeyRec | null> {
 }
 export async function listApiKeys(): Promise<PublicApiKeyRec[]> {
   await ready();
-  if (!pool) return Array.from(inMemory.apiKeys.values()).map(toPublic);
+  if (apiKeyListCache && apiKeyListCache.expiresAt > Date.now()) return apiKeyListCache.value;
+  if (!pool) {
+    const value = Array.from(inMemory.apiKeys.values()).map(toPublic);
+    apiKeyListCache = { value, expiresAt: Date.now() + 10_000 };
+    return value;
+  }
   const result = await pool.query('SELECT key, id, name, key_hint, expires_at, revoked FROM api_keys ORDER BY created_at DESC');
-  return result.rows.map(rowToApiKey).map(toPublic);
+  const value = result.rows.map(rowToApiKey).map(toPublic);
+  apiKeyListCache = { value, expiresAt: Date.now() + 10_000 };
+  return value;
 }
 export async function revokeApiKey(id: string): Promise<boolean> {
   await ready();
-  if (!pool) { const rec = inMemory.apiKeys.get(id); if (!rec) return false; rec.revoked = true; return true; }
+  if (!pool) { const rec = inMemory.apiKeys.get(id); if (!rec) return false; rec.revoked = true; apiKeyListCache = null; return true; }
   const result = await pool.query('UPDATE api_keys SET revoked = TRUE WHERE id = $1 AND revoked = FALSE', [id]);
+  if (result.rowCount) apiKeyListCache = null;
   return Boolean(result.rowCount);
 }
 export async function listDevices(maxAgeMs?: number): Promise<CachedDevice[]> {
