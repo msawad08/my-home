@@ -2,8 +2,26 @@ import bcrypt from 'bcryptjs';
 import storage from './storage';
 
 export async function verifyUser(username: string, password: string): Promise<boolean> {
+  console.log('[auth] verifyUser attempt', {
+    username,
+    passwordProvided: Boolean(password),
+    isVercel: Boolean(process.env.VERCEL),
+  });
+
   const user = await storage.getUser(username);
-  return Boolean(user && bcrypt.compareSync(password, user.passwordHash));
+  if (!user) {
+    console.log('[auth] verifyUser failed: user not found', { username });
+    return false;
+  }
+
+  const matches = bcrypt.compareSync(password, user.passwordHash);
+  console.log('[auth] verifyUser result', {
+    username,
+    userFound: true,
+    passwordMatches: matches,
+    passwordHashLength: user.passwordHash.length,
+  });
+  return matches;
 }
 
 export async function createApiKey(name: string, days?: number) {

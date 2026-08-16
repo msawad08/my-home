@@ -25,8 +25,27 @@ export async function initStorage(): Promise<void> {
   if (initialization) return initialization;
   initialization = (async () => {
     const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) return;
-    pool = new Pool({ connectionString });
+    if (!connectionString) {
+      console.warn('[storage] DATABASE_URL is missing; using in-memory fallback.');
+      return;
+    }
+
+    const sslEnabled = process.env.VERCEL || connectionString.includes('sslmode=require') || connectionString.includes('ssl=true');
+    const poolConfig: any = { connectionString };
+    if (sslEnabled) {
+      poolConfig.ssl = { rejectUnauthorized: false };
+    }
+
+    console.log('[storage] initializing postgres', {
+      isVercel: Boolean(process.env.VERCEL),
+      hasDatabaseUrl: true,
+      appUsernameConfigured: Boolean(process.env.APP_USERNAME),
+      appPasswordConfigured: Boolean(process.env.APP_PASSWORD),
+      sslEnabled,
+      dbHost: connectionString.split('@')[1]?.split('/')[0]?.split(':')[0] || 'unknown',
+    });
+
+    pool = new Pool(poolConfig);
     try {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT NOT NULL);
@@ -44,11 +63,15 @@ export async function initStorage(): Promise<void> {
         UPDATE api_keys SET id = md5(key), key_hint = concat(left(key, 8), '…') WHERE id IS NULL;
         CREATE UNIQUE INDEX IF NOT EXISTS api_keys_id_unique ON api_keys(id) WHERE id IS NOT NULL;
       `);
+      const hashedDefaultPassword = bcrypt.hashSync(defaultPassword, 10);
       await pool.query(
         'INSERT INTO users(username, password_hash) VALUES($1, $2) ON CONFLICT (username) DO NOTHING',
-        [defaultUsername, bcrypt.hashSync(defaultPassword, 10)],
+        [defaultUsername, hashedDefaultPassword],
       );
+      const insertedUser = await pool.query('SELECT username FROM users WHERE username = $1', [defaultUsername]);
+      console.log('[storage] postgres ready', { defaultUsername, userExists: insertedUser.rowCount > 0 });
     } catch (error) {
+      console.error('[storage] postgres init failed', error);
       await pool.end().catch(() => undefined);
       pool = null;
       initialization = null;
