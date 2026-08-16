@@ -9,6 +9,7 @@ export class MiraieAdapter implements SmartHomeProvider {
   id = 'miraie';
   name = 'MirAIe';
   private session: any | null = null;
+  private devices = new Map<string, any>();
 
   async authenticate(): Promise<void> {
     const username = process.env.MIRAIE_USERNAME;
@@ -26,20 +27,48 @@ export class MiraieAdapter implements SmartHomeProvider {
     if (!this.session) await this.authenticate();
   }
 
-  private mapDevice(device: any): DeviceState {
+  private toBoolean(value: unknown, fallback = false): boolean {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') return ['on', 'true', '1', 'enabled'].includes(value.toLowerCase());
+    return fallback;
+  }
+
+  private toTemperature(value: unknown): number | undefined {
+    const temperature = Number(value);
+    return Number.isFinite(temperature) && temperature >= 0 && temperature <= 60 ? temperature : undefined;
+  }
+
+  private mapDevice(device: any, previous?: DeviceState): DeviceState {
     const id = String(device.data?.deviceId || device.id || device.deviceId || device.device_id || device.data?.id || '');
+    const status = device.getStatus?.() || {};
+    const powerValue = status.ps ?? status.power ?? status.powerState ?? device.data?.ps ?? device.data?.power;
+    const targetTemperature = this.toTemperature(status.actmp ?? status.targetTemperature ?? status.targetTemp ?? device.data?.targetTemperature ?? device.data?.targetTemp) ?? previous?.targetTemperature;
+    const currentTemperature = this.toTemperature(status.roomTemp ?? status.roomTemperature ?? status.rmt ?? status.ambientTemperature ?? status.ambT ?? status.currentTemperature ?? device.data?.roomTemp) ?? previous?.currentTemperature;
     return {
       id,
       name: device.getFriendlyName?.() || device.data?.deviceName || device.data?.name || id,
       providerId: this.id,
       online: device.data?.online ?? true,
-      power: Boolean(device.data?.power),
-      mode: device.data?.mode,
-      targetTemperature: device.data?.targetTemperature ?? device.data?.targetTemp,
-      currentTemperature: device.data?.roomTemp ?? device.data?.currentTemperature,
-      fanSpeed: device.data?.fanSpeed,
+      power: this.toBoolean(powerValue, previous?.power ?? false),
+      mode: status.acmd ?? status.mode ?? device.data?.mode ?? previous?.mode,
+      targetTemperature,
+      currentTemperature,
+      fanSpeed: status.acfs ?? status.fanSpeed ?? device.data?.fanSpeed ?? previous?.fanSpeed,
       capabilities: ['power', 'temperature', 'mode', 'fanSpeed'],
     };
+  }
+
+  private async discoverDevices(): Promise<any[]> {
+    if (this.devices.size) return Array.from(this.devices.values());
+    const devices = await this.session.getDevices();
+    for (const device of devices || []) {
+      const id = String(device.data?.deviceId || device.id);
+      if (id) this.devices.set(id, device);
+    }
+    const topics = Array.from(this.devices.values()).map((device) => device.data?.topic?.[0]).filter(Boolean).map((topic) => `${topic}/status`);
+    if (topics.length && typeof this.session.subscribeToTopics === 'function') await this.session.subscribeToTopics(topics);
+    return Array.from(this.devices.values());
   }
 
   private async cacheDevice(state: DeviceState) {
@@ -55,8 +84,8 @@ export class MiraieAdapter implements SmartHomeProvider {
   async getDevices(): Promise<DeviceState[]> {
     await this.ensureSession();
     if (typeof this.session?.getDevices === 'function') {
-      const devices = await this.session.getDevices();
-      const states: DeviceState[] = (devices || []).map((device: any) => this.mapDevice(device));
+      const devices = await this.discoverDevices();
+      const states: DeviceState[] = devices.map((device) => this.mapDevice(device, db.devices.get(String(device.data?.deviceId || device.id))));
       await Promise.all(states.map((state) => this.cacheDevice(state)));
       return states;
     }
@@ -67,10 +96,10 @@ export class MiraieAdapter implements SmartHomeProvider {
   async getDeviceState(deviceId: string): Promise<DeviceState | null> {
     await this.ensureSession();
     if (typeof this.session?.getDevices === 'function') {
-      const devices = await this.session.getDevices();
+      const devices = await this.discoverDevices();
       const device = (devices || []).find((item: any) => String(item.data?.deviceId || item.id) === deviceId);
       if (device) {
-        const state = this.mapDevice(device);
+        const state = this.mapDevice(device, db.devices.get(deviceId));
         await this.cacheDevice(state);
         return state;
       }
@@ -84,13 +113,17 @@ export class MiraieAdapter implements SmartHomeProvider {
   async executeCommand(deviceId: string, command: DeviceCommand): Promise<DeviceState> {
     await this.ensureSession();
     if (typeof this.session?.getDevices === 'function') {
-      const devices = await this.session.getDevices();
+      const devices = await this.discoverDevices();
       const device = (devices || []).find((item: any) => String(item.data?.deviceId || item.id) === deviceId);
       if (!device) throw new Error('INVALID_DEVICE');
       if (command.temperature !== undefined) await device.setTemperature(Number(command.temperature));
       if (command.power !== undefined) command.power ? await device.turnOn() : await device.turnOff();
       if (command.mode !== undefined && typeof device.setHvacMode === 'function') await device.setHvacMode(command.mode);
-      const state = this.mapDevice(device);
+      const existing = ((await storage.getDevice(deviceId))?.data as DeviceState | undefined) ?? db.devices.get(deviceId);
+      const state = this.mapDevice(device, existing);
+      if (command.power !== undefined) state.power = command.power;
+      if (command.temperature !== undefined) state.targetTemperature = command.temperature;
+      if (command.mode !== undefined) state.mode = command.mode;
       await this.cacheDevice(state);
       return state;
     }
