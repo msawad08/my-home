@@ -52,6 +52,10 @@ export async function initStorage(): Promise<void> {
       await pool.end().catch(() => undefined);
       pool = null;
       initialization = null;
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Postgres is unavailable; using in-memory storage for development.');
+        return;
+      }
       throw error;
     }
   })();

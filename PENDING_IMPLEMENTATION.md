@@ -31,3 +31,4 @@
 
 - `npm run build` passes after the storage and UI changes.
 - Automated browser visual inspection could not start because the local browser bridge is unavailable in this environment.
+- Local authenticated smoke testing passes with the development in-memory fallback when Postgres is unavailable; production continues to fail fast for a configured database.
